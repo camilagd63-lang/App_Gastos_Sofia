@@ -46,6 +46,11 @@
             margin-bottom: 20px;
         }
 
+        .balance-box p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
         .balance-box h2 {
             font-size: 32px;
             margin-top: 5px;
@@ -63,7 +68,7 @@
             gap: 10px;
         }
 
-        .row input, .row select {
+        .row input {
             flex: 1;
             width: 50%;
         }
@@ -73,6 +78,7 @@
             border: 1px solid #ccc;
             border-radius: 6px;
             font-size: 15px;
+            background-color: #fff;
         }
 
         textarea {
@@ -97,12 +103,25 @@
             background-color: #2c3e50;
         }
 
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+
         h3 {
             color: #2c3e50;
             font-size: 18px;
-            margin-bottom: 10px;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 5px;
+        }
+
+        #month-filter {
+            padding: 6px 10px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #bdc3c7;
         }
 
         .expense-list {
@@ -170,11 +189,6 @@
             cursor: pointer;
             font-size: 14px;
             padding: 5px;
-            transition: transform 0.2s;
-        }
-
-        .delete-btn:hover {
-            transform: scale(1.2);
         }
     </style>
 </head>
@@ -184,7 +198,7 @@
     <h1>Mis Gastos Foráneos 🎓</h1>
     
     <div class="balance-box">
-        <p>Total Gastado Histórico</p>
+        <p>Total Gastado en <span id="current-month-label">este mes</span></p>
         <h2 id="total-amount">$0</h2>
     </div>
 
@@ -204,10 +218,15 @@
 
         <textarea id="expense-description" placeholder="Añade una descripción o detalle (opcional)..." maxlength="150"></textarea>
         
-        <button type="submit">Guardar Gasto en Historial</button>
+        <button type="submit">Guardar Gasto</button>
     </form>
 
-    <h3>Historial de Registros</h3>
+    <div class="history-header">
+        <h3>Historial</h3>
+        <select id="month-filter">
+            </select>
+    </div>
+
     <ul class="expense-list" id="expense-list">
         </ul>
 </div>
@@ -220,67 +239,120 @@
     const expenseDescription = document.getElementById('expense-description');
     const expenseList = document.getElementById('expense-list');
     const totalAmount = document.getElementById('total-amount');
+    const monthFilter = document.getElementById('month-filter');
+    const currentMonthLabel = document.getElementById('current-month-label');
 
-    // Cargar del localStorage
+    // Cargar base de datos
     let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 
+    // Obtener mes y año actual en formato texto (ej: "junio 2026")
+    function getMonthYearString(date = new Date()) {
+        return date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+
+    // Al iniciar, el mes seleccionado por defecto es el actual
+    let selectedMonth = getMonthYearString();
+
+    // Actualiza el menú desplegable de los meses según los datos existentes
+    function updateMonthFilterOptions() {
+        const currentPeriod = getMonthYearString();
+        
+        // Extraer todos los meses únicos que existen en los gastos guardados
+        const periods = expenses.map(exp => exp.period);
+        
+        // Asegurarnos de que el mes actual siempre esté en la lista, aunque no haya gastos
+        if (!periods.includes(currentPeriod)) {
+            periods.push(currentPeriod);
+        }
+
+        // Eliminar duplicados y ordenar de más nuevo a más viejo
+        const uniquePeriods = [...new Set(periods)].sort((a, b) => b.localeCompare(a));
+
+        monthFilter.innerHTML = '';
+        uniquePeriods.forEach(period => {
+            const option = document.createElement('option');
+            option.value = period;
+            option.innerText = period.charAt(0).toUpperCase() + period.slice(1); // Capitalizar mes
+            if (period === selectedMonth) option.selected = true;
+            monthFilter.appendChild(option);
+        });
+    }
+
     function updateUI() {
+        updateMonthFilterOptions();
         expenseList.innerHTML = '';
         let total = 0;
 
-        // Mostrar los gastos (los más nuevos aparecerán arriba en el historial)
-        expenses.slice().reverse().forEach((expense, inverseIndex) => {
-            total += expense.amount;
+        currentMonthLabel.innerText = selectedMonth;
 
-            // Calcular el índice real en el arreglo original para poder borrarlo correctamente
+        // Filtrar y renderizar los gastos que correspondan al mes seleccionado
+        expenses.slice().reverse().forEach((expense, inverseIndex) => {
             const originalIndex = expenses.length - 1 - inverseIndex;
 
-            const li = document.createElement('li');
-            li.classList.add('expense-item');
-            
-            // Si no hay descripción, dejamos el campo vacío en el diseño
-            const descHtml = expense.description ? `<span class="expense-desc">"${expense.description}"</span>` : '';
+            if (expense.period === selectedMonth) {
+                total += expense.amount;
 
-            li.innerHTML = `
-                <div class="expense-info">
-                    <span class="expense-title">${expense.name}</span>
-                    ${descHtml}
-                    <span class="expense-meta">${expense.category}</span>
-                </div>
-                <div class="expense-right">
-                    <span class="expense-amount">-$${expense.amount.toLocaleString()}</span>
-                    <button class="delete-btn" onclick="deleteExpense(${originalIndex})">❌</button>
-                </div>
-            `;
-            expenseList.appendChild(li);
+                const li = document.createElement('li');
+                li.classList.add('expense-item');
+                const descHtml = expense.description ? `<span class="expense-desc">"${expense.description}"</span>` : '';
+
+                li.innerHTML = `
+                    <div class="expense-info">
+                        <span class="expense-title">${expense.name}</span>
+                        ${descHtml}
+                        <span class="expense-meta">${expense.category}</span>
+                    </div>
+                    <div class="expense-right">
+                        <span class="expense-amount">-$${expense.amount.toLocaleString()}</span>
+                        <button class="delete-btn" onclick="deleteExpense(${originalIndex})">❌</button>
+                    </div>
+                `;
+                expenseList.appendChild(li);
+            }
         });
 
         totalAmount.innerText = `$${total.toLocaleString()}`;
         localStorage.setItem('expenses', JSON.stringify(expenses));
     }
 
+    // Evento al enviar formulario (Nuevo Gasto)
     expenseForm.addEventListener('submit', (e) => {
         e.preventDefault();
+
+        const now = new Date();
+        const currentPeriod = getMonthYearString(now);
 
         const newExpense = {
             name: expenseName.value,
             amount: parseFloat(expenseValue.value),
             category: expenseCategory.value,
-            description: expenseDescription.value.trim() // Guardamos la descripción limpia
+            description: expenseDescription.value.trim(),
+            period: currentPeriod // Guardamos a qué mes pertenece automáticamente
         };
 
         expenses.push(newExpense);
+        
+        // Si estaba viendo otro mes, la regresamos automáticamente al mes actual para que vea lo que agregó
+        selectedMonth = currentPeriod; 
+        
         updateUI();
         expenseForm.reset();
     });
 
+    // Evento al cambiar de mes en el filtro
+    monthFilter.addEventListener('change', (e) => {
+        selectedMonth = e.target.value;
+        updateUI();
+    });
+
     window.deleteExpense = function(index) {
-        if(confirm("¿Seguro que quieres eliminar este registro del historial?")) {
+        if(confirm("¿Seguro que deseas eliminar este registro?")) {
             expenses.splice(index, 1);
             updateUI();
         }
     }
 
+    // Carga inicial
     updateUI();
 </script>
 
