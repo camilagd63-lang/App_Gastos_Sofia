@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Gastos - Foráneos</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .balance-box {
+            background: linear-gradient(135deg, #1abc9c, #16a085);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .balance-box h2 {
+            font-size: 32px;
+            margin-top: 5px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        input, select {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #34495e;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #2c3e50;
+        }
+
+        .expense-list {
+            list-style: none;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .expense-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 16px;
+        }
+
+        .expense-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .expense-category {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .expense-amount {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #c0392b;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Mis Gastos Foráneos 🎓</h1>
+    
+    <div class="balance-box">
+        <p>Total Gastado</p>
+        <h2 id="total-amount">$0</h2>
+    </div>
+
+    <form id="expense-form">
+        <input type="text" id="expense-name" placeholder="Ej. Almuerzo, Fotocopias, Metro..." required>
+        <input type="number" id="expense-value" placeholder="Monto ($)" required min="1">
+        <select id="expense-category">
+            <option value="Comida">Comida</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Estudios">Estudios</option>
+            <option value="Alquiler/Servicios">Alquiler / Servicios</option>
+            <option value="Ocio">Ocio / Otros</option>
+        </select>
+        <button type="submit">Agregar Gasto</button>
+    </form>
+
+    <ul class="expense-list" id="expense-list">
+        </ul>
+</div>
+
+<script>
+    const expenseForm = document.getElementById('expense-form');
+    const expenseName = document.getElementById('expense-name');
+    const expenseValue = document.getElementById('expense-value');
+    const expenseCategory = document.getElementById('expense-category');
+    const expenseList = document.getElementById('expense-list');
+    const totalAmount = document.getElementById('total-amount');
+
+    // Cargar gastos desde localStorage o iniciar vacío
+    let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+
+    // Función para actualizar el total y la lista en pantalla
+    function updateUI() {
+        expenseList.innerHTML = '';
+        let total = 0;
+
+        expenses.forEach((expense, index) => {
+            total += expense.amount;
+
+            const li = document.createElement('li');
+            li.classList.add('expense-item');
+            li.innerHTML = `
+                <div class="expense-info">
+                    <span>${expense.name}</span>
+                    <span class="expense-category">${expense.category}</span>
+                </div>
+                <div>
+                    <span class="expense-amount">-$${expense.amount.toLocaleString()}</span>
+                    <button class="delete-btn" onclick="deleteExpense(${index})">❌</button>
+                </div>
+            `;
+            expenseList.appendChild(li);
+        });
+
+        totalAmount.innerText = `$${total.toLocaleString()}`;
+        // Guardar en el almacenamiento del navegador
+        localStorage.setItem('expenses', JSON.stringify(expenses));
+    }
+
+    // Agregar nuevo gasto
+    expenseForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const newExpense = {
+            name: expenseName.value,
+            amount: parseFloat(expenseValue.value),
+            category: expenseCategory.value
+        };
+
+        expenses.push(newExpense);
+        updateUI();
+
+        // Limpiar formulario
+        expenseForm.reset();
+    });
+
+    // Eliminar gasto
+    window.deleteExpense = function(index) {
+        expenses.splice(index, 1);
+        updateUI();
+    }
+
+    // Inicializar la app al cargar
+    updateUI();
+</script>
+
+</body>
+</html>
