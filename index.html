@@ -190,6 +190,15 @@
             font-size: 14px;
             padding: 5px;
         }
+        
+        .sync-status {
+            font-size: 11px;
+            color: #27ae60;
+            text-align: center;
+            margin-top: -15px;
+            margin-bottom: 15px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -201,6 +210,8 @@
         <p>Total Gastado en <span id="current-month-label">este mes</span></p>
         <h2 id="total-amount">$0</h2>
     </div>
+
+    <div id="sync-label" class="sync-status">🔄 Sincronizando con Google Sheets...</div>
 
     <form id="expense-form">
         <div class="row">
@@ -218,7 +229,7 @@
 
         <textarea id="expense-description" placeholder="Añade una descripción o detalle (opcional)..." maxlength="150"></textarea>
         
-        <button type="submit">Guardar Gasto</button>
+        <button type="submit" id="submit-btn">Guardar Gasto</button>
     </form>
 
     <div class="history-header">
@@ -232,6 +243,9 @@
 </div>
 
 <script>
+    // https://script.google.com/macros/s/AKfycbzxdNxjfNoUt-PYftBiBVEz1IcwJhhYvAjmmbjir2Jfz7iSaCbBc3KruqFTV70CSyJBwg/exec
+    const GOOGLE_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzxdNxjfNoUt-PYftBiBVEz1IcwJhhYvAjmmbjir2Jfz7iSaCbBc3KruqFTV70CSyJBwg/exec;
+
     const expenseForm = document.getElementById('expense-form');
     const expenseName = document.getElementById('expense-name');
     const expenseValue = document.getElementById('expense-value');
@@ -241,38 +255,32 @@
     const totalAmount = document.getElementById('total-amount');
     const monthFilter = document.getElementById('month-filter');
     const currentMonthLabel = document.getElementById('current-month-label');
+    const syncLabel = document.getElementById('sync-label');
+    const submitBtn = document.getElementById('submit-btn');
 
-    // Cargar base de datos
     let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
 
-    // Obtener mes y año actual en formato texto (ej: "junio 2026")
     function getMonthYearString(date = new Date()) {
         return date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     }
 
-    // Al iniciar, el mes seleccionado por defecto es el actual
     let selectedMonth = getMonthYearString();
 
-    // Actualiza el menú desplegable de los meses según los datos existentes
     function updateMonthFilterOptions() {
         const currentPeriod = getMonthYearString();
-        
-        // Extraer todos los meses únicos que existen en los gastos guardados
         const periods = expenses.map(exp => exp.period);
         
-        // Asegurarnos de que el mes actual siempre esté en la lista, aunque no haya gastos
         if (!periods.includes(currentPeriod)) {
             periods.push(currentPeriod);
         }
 
-        // Eliminar duplicados y ordenar de más nuevo a más viejo
         const uniquePeriods = [...new Set(periods)].sort((a, b) => b.localeCompare(a));
 
         monthFilter.innerHTML = '';
         uniquePeriods.forEach(period => {
             const option = document.createElement('option');
             option.value = period;
-            option.innerText = period.charAt(0).toUpperCase() + period.slice(1); // Capitalizar mes
+            option.innerText = period.charAt(0).toUpperCase() + period.slice(1);
             if (period === selectedMonth) option.selected = true;
             monthFilter.appendChild(option);
         });
@@ -285,7 +293,6 @@
 
         currentMonthLabel.innerText = selectedMonth;
 
-        // Filtrar y renderizar los gastos que correspondan al mes seleccionado
         expenses.slice().reverse().forEach((expense, inverseIndex) => {
             const originalIndex = expenses.length - 1 - inverseIndex;
 
@@ -315,7 +322,6 @@
         localStorage.setItem('expenses', JSON.stringify(expenses));
     }
 
-    // Evento al enviar formulario (Nuevo Gasto)
     expenseForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
@@ -327,32 +333,54 @@
             amount: parseFloat(expenseValue.value),
             category: expenseCategory.value,
             description: expenseDescription.value.trim(),
-            period: currentPeriod // Guardamos a qué mes pertenece automáticamente
+            period: currentPeriod
         };
 
+        // 1. Guardar localmente para respuesta inmediata en la interfaz
         expenses.push(newExpense);
-        
-        // Si estaba viendo otro mes, la regresamos automáticamente al mes actual para que vea lo que agregó
         selectedMonth = currentPeriod; 
-        
         updateUI();
         expenseForm.reset();
+
+        // 2. Enviar a Google Sheets en segundo plano
+        if(GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "AQUÍ_PEGA_TU_URL_DE_APPS_SCRIPT") {
+            syncLabel.style.display = "block";
+            syncLabel.style.color = "#d35400";
+            syncLabel.innerText = "⏳ Guardando en Google Sheets...";
+            
+            fetch(GOOGLE_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors", // Evita problemas de políticas de seguridad del navegador
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(newExpense)
+            })
+            .then(() => {
+                syncLabel.style.color = "#27ae60";
+                syncLabel.innerText = "✅ ¡Sincronizado con Google Sheets!";
+                setTimeout(() => syncLabel.style.display = "none", 3000);
+            })
+            .catch(err => {
+                console.error(err);
+                syncLabel.style.color = "#c0392b";
+                syncLabel.innerText = "❌ Error al sincronizar con Sheets";
+            });
+        }
     });
 
-    // Evento al cambiar de mes en el filtro
     monthFilter.addEventListener('change', (e) => {
         selectedMonth = e.target.value;
         updateUI();
     });
 
     window.deleteExpense = function(index) {
-        if(confirm("¿Seguro que deseas eliminar este registro?")) {
+        if(confirm("¿Seguro que deseas eliminar este registro local? (Nota: Esto no lo borrará de Google Sheets)")) {
             expenses.splice(index, 1);
             updateUI();
         }
     }
 
-    // Carga inicial
     updateUI();
 </script>
 
